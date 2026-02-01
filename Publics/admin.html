@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LGRE² - Panel d'Administration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #FF6B00;
+            --secondary: #FFD700;
+            --dark: #0D0D0D;
+            --card: #1A1A1A;
+            --text: #FFFFFF;
+            --text-gray: #A0A0A0;
+            --success: #00D084;
+            --danger: #FF3B3B;
+            --warning: #FFCC00;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0D0D0D 0%, #1A0F0F 100%);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--card);
+            border-right: 1px solid rgba(255, 107, 0, 0.2);
+            padding: 2rem 0;
+        }
+
+        .logo {
+            padding: 0 2rem 2rem;
+            border-bottom: 1px solid rgba(255, 107, 0, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .logo h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-item {
+            padding: 1rem 2rem;
+            color: var(--text-gray);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-weight: 500;
+        }
+
+        .nav-item:hover,
+        .nav-item.active {
+            background: rgba(255, 107, 0, 0.1);
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.8rem 1.5rem;
+            background: var(--card);
+            border-radius: 50px;
+            border: 1px solid rgba(255, 107, 0, 0.2);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 107, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 107, 0, 0.3);
+        }
+
+        .stat-card .icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .stat-card.orange .icon {
+            background: rgba(255, 107, 0, 0.2);
+            color: var(--primary);
+        }
+
+        .stat-card.yellow .icon {
+            background: rgba(255, 204, 0, 0.2);
+            color: var(--warning);
+        }
+
+        .stat-card.green .icon {
+            background: rgba(0, 208, 132, 0.2);
+            color: var(--success);
+        }
+
+        .stat-card.red .icon {
+            background: rgba(255, 59, 59, 0.2);
+            color: var(--danger);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-gray);
+            font-size: 0.9rem;
+        }
+
+        /* Table */
+        .table-container {
+            background: var(--card);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 107, 0, 0.2);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .table-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid rgba(255, 107, 0, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 1rem 2rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 107, 0, 0.1);
+        }
+
+        th {
+            color: var(--text-gray);
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        tbody tr {
+            transition: background 0.3s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 107, 0, 0.05);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #FF8534);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 0, 0.4);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        /* Badge */
+        .badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background: rgba(0, 208, 132, 0.2);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(255, 204, 0, 0.2);
+            color: var(--warning);
+        }
+
+        .badge-danger {
+            background: rgba(255, 59, 59, 0.2);
+            color: var(--danger);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            border: 1px solid rgba(255, 107, 0, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-gray);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-gray);
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 107, 0, 0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>LGRE²</h1>
+                <p style="font-size: 0.85rem; color: var(--text-gray); margin-top: 0.5rem;">Panel Admin</p>
+            </div>
+            <nav>
+                <div class="nav-item active" onclick="showSection('dashboard')">
+                    📊 Dashboard
+                </div>
+                <div class="nav-item" onclick="showSection('products')">
+                    📦 Produits
+                </div>
+                <div class="nav-item" onclick="showSection('orders')">
+                    🛒 Commandes
+                </div>
+                <div class="nav-item" onclick="showSection('users')">
+                    👥 Utilisateurs
+                </div>
+                <div class="nav-item" onclick="showSection('settings')">
+                    ⚙️ Paramètres
+                </div>
+                <div class="nav-item" onclick="logout()" style="margin-top: 2rem; color: var(--danger);">
+                    🚪 Déconnexion
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="header">
+                <h2 id="pageTitle">Dashboard</h2>
+                <div class="user-info">
+                    <div style="width: 35px; height: 35px; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700;">
+                        A
+                    </div>
+                    <span>Admin</span>
+                </div>
+            </div>
+
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <div class="stats-grid">
+                    <div class="stat-card orange">
+                        <div class="icon">👥</div>
+                        <div class="stat-value" id="totalUsers">-</div>
+                        <div class="stat-label">Utilisateurs</div>
+                    </div>
+                    <div class="stat-card yellow">
+                        <div class="icon">📦</div>
+                        <div class="stat-value" id="totalProducts">-</div>
+                        <div class="stat-label">Produits</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="icon">🛒</div>
+                        <div class="stat-value" id="totalOrders">-</div>
+                        <div class="stat-label">Commandes</div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="icon">💰</div>
+                        <div class="stat-value" id="totalRevenue">-</div>
+                        <div class="stat-label">Revenus (FCFA)</div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Dernières Commandes</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showSection('orders')">Voir tout</button>
+                    </div>
+                    <div id="recentOrders">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Chargement...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section id="products" class="section">
+                <div style="margin-bottom: 2rem;">
+                    <button class="btn btn-primary" onclick="openAddProductModal()">
+                        + Ajouter un produit
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Tous les Produits</h3>
+                        <input type="text" placeholder="Rechercher..." style="padding: 0.8rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 8px; color: white;" onkeyup="searchProducts(this.value)">
+                    </div>
+                    <div id="productsTable">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Chargement des produits...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orders Section -->
+            <section id="orders" class="section">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Toutes les Commandes</h3>
+                        <select style="padding: 0.8rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 8px; color: white;" onchange="filterOrders(this.value)">
+                            <option value="all">Toutes</option>
+                            <option value="pending">En attente</option>
+                            <option value="confirmed">Confirmées</option>
+                            <option value="shipped">Expédiées</option>
+                            <option value="delivered">Livrées</option>
+                        </select>
+                    </div>
+                    <div id="ordersTable">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Chargement des commandes...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Users Section -->
+            <section id="users" class="section">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Tous les Utilisateurs</h3>
+                    </div>
+                    <div id="usersTable">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            Chargement des utilisateurs...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="section">
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3>Paramètres</h3>
+                    </div>
+                    <div style="padding: 2rem;">
+                        <div class="form-group">
+                            <label>Nom du site</label>
+                            <input type="text" value="LGRE²" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Email de contact</label>
+                            <input type="email" value="contact@lgre2.cm">
+                        </div>
+                        <div class="form-group">
+                            <label>Téléphone</label>
+                            <input type="tel" value="+237 6XX XXX XXX">
+                        </div>
+                        <div class="form-group">
+                            <label>Frais de livraison (FCFA)</label>
+                            <input type="number" value="2500">
+                        </div>
+                        <div class="form-group">
+                            <label>Modes de paiement actifs</label>
+                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" checked> Orange Money
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" checked> MTN Mobile Money
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox"> Carte bancaire
+                                </label>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveSettings()">
+                            Enregistrer les modifications
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = 'http://localhost:3000/api';
+        let authToken = localStorage.getItem('adminToken');
+
+        // Initialize
+        if (!authToken) {
+            // Simple login for demo
+            const password = prompt('Mot de passe admin:');
+            if (password === 'admin123') {
+                authToken = 'demo-token';
+                localStorage.setItem('adminToken', authToken);
+            } else {
+                alert('Mot de passe incorrect');
+                window.location.reload();
+            }
+        }
+
+        // Load initial data
+        loadDashboardStats();
+        loadRecentOrders();
+
+        // Navigation
+        function showSection(sectionId) {
+            // Update active nav item
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update page title
+            const titles = {
+                'dashboard': 'Dashboard',
+                'products': 'Gestion des Produits',
+                'orders': 'Gestion des Commandes',
+                'users': 'Gestion des Utilisateurs',
+                'settings': 'Paramètres'
+            };
+            document.getElementById('pageTitle').textContent = titles[sectionId];
+
+            // Show section
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(sectionId).classList.add('active');
+
+            // Load data
+            if (sectionId === 'products') loadProducts();
+            if (sectionId === 'orders') loadOrders();
+            if (sectionId === 'users') loadUsers();
+        }
+
+        // Load dashboard stats
+        async function loadDashboardStats() {
+            // Simulated data for demo
+            document.getElementById('totalUsers').textContent = '1,234';
+            document.getElementById('totalProducts').textContent = '456';
+            document.getElementById('totalOrders').textContent = '789';
+            document.getElementById('totalRevenue').textContent = '45.5M';
+
+            // In production, fetch from API:
+            // const response = await fetch(`${API_URL}/admin/stats`, {
+            //     headers: { 'Authorization': `Bearer ${authToken}` }
+            // });
+            // const data = await response.json();
+        }
+
+        // Load recent orders
+        async function loadRecentOrders() {
+            const sampleOrders = [
+                { id: '#1234', customer: 'Jean Dupont', total: 450000, status: 'confirmed', date: '2026-01-30' },
+                { id: '#1235', customer: 'Marie Kamga', total: 85000, status: 'pending', date: '2026-01-30' },
+                { id: '#1236', customer: 'Paul Nkodo', total: 120000, status: 'shipped', date: '2026-01-29' },
+            ];
+
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Commande</th>
+                            <th>Client</th>
+                            <th>Montant</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sampleOrders.map(order => `
+                            <tr>
+                                <td>${order.id}</td>
+                                <td>${order.customer}</td>
+                                <td>${order.total.toLocaleString()} FCFA</td>
+                                <td>
+                                    <span class="badge badge-${order.status === 'confirmed' ? 'success' : order.status === 'pending' ? 'warning' : 'success'}">
+                                        ${order.status}
+                                    </span>
+                                </td>
+                                <td>${order.date}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('recentOrders').innerHTML = html;
+        }
+
+        function loadProducts() {
+            // Simulated product data
+            const products = [
+                { id: 1, name: 'iPhone 14 Pro', price: 650000, stock: 15, category: 'Électronique', status: 'active' },
+                { id: 2, name: 'Laptop HP', price: 450000, stock: 8, category: 'Électronique', status: 'active' },
+                { id: 3, name: 'Robe Africaine', price: 35000, stock: 42, category: 'Mode', status: 'active' },
+            ];
+
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Produit</th>
+                            <th>Prix</th>
+                            <th>Stock</th>
+                            <th>Catégorie</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${products.map(p => `
+                            <tr>
+                                <td>#${p.id}</td>
+                                <td>${p.name}</td>
+                                <td>${p.price.toLocaleString()} FCFA</td>
+                                <td>${p.stock}</td>
+                                <td>${p.category}</td>
+                                <td>
+                                    <button class="btn btn-success btn-sm" onclick="editProduct(${p.id})">✏️</button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">🗑️</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('productsTable').innerHTML = html;
+        }
+
+        function loadOrders() {
+            const orders = [
+                { id: 1234, customer: 'Jean Dupont', total: 450000, status: 'confirmed', payment: 'Orange Money', date: '2026-01-30' },
+                { id: 1235, customer: 'Marie Kamga', total: 85000, status: 'pending', payment: 'MTN MoMo', date: '2026-01-30' },
+                { id: 1236, customer: 'Paul Nkodo', total: 120000, status: 'delivered', payment: 'Orange Money', date: '2026-01-29' },
+            ];
+
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Client</th>
+                            <th>Montant</th>
+                            <th>Paiement</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.map(o => `
+                            <tr>
+                                <td>#${o.id}</td>
+                                <td>${o.customer}</td>
+                                <td>${o.total.toLocaleString()} FCFA</td>
+                                <td>${o.payment}</td>
+                                <td>
+                                    <span class="badge badge-${o.status === 'delivered' ? 'success' : o.status === 'pending' ? 'warning' : 'success'}">
+                                        ${o.status}
+                                    </span>
+                                </td>
+                                <td>${o.date}</td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm" onclick="viewOrder(${o.id})">👁️</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('ordersTable').innerHTML = html;
+        }
+
+        function loadUsers() {
+            const users = [
+                { id: 1, name: 'Jean Dupont', email: 'jean@example.com', role: 'buyer', joined: '2026-01-15' },
+                { id: 2, name: 'Marie Kamga', email: 'marie@example.com', role: 'seller', joined: '2026-01-20' },
+                { id: 3, name: 'Paul Nkodo', email: 'paul@example.com', role: 'buyer', joined: '2026-01-25' },
+            ];
+
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom</th>
+                            <th>Email</th>
+                            <th>Rôle</th>
+                            <th>Inscription</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr>
+                                <td>#${u.id}</td>
+                                <td>${u.name}</td>
+                                <td>${u.email}</td>
+                                <td><span class="badge badge-${u.role === 'seller' ? 'warning' : 'success'}">${u.role}</span></td>
+                                <td>${u.joined}</td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm" onclick="viewUser(${u.id})">👁️</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('usersTable').innerHTML = html;
+        }
+
+        function logout() {
+            if (confirm('Voulez-vous vraiment vous déconnecter?')) {
+                localStorage.removeItem('adminToken');
+                window.location.reload();
+            }
+        }
+
+        function saveSettings() {
+            alert('Paramètres enregistrés avec succès!');
+        }
+
+        function editProduct(id) {
+            alert('Modifier le produit #' + id);
+        }
+
+        function deleteProduct(id) {
+            if (confirm('Supprimer ce produit?')) {
+                alert('Produit #' + id + ' supprimé');
+                loadProducts();
+            }
+        }
+
+        function viewOrder(id) {
+            alert('Voir la commande #' + id);
+        }
+
+        function viewUser(id) {
+            alert('Voir l\'utilisateur #' + id);
+        }
+
+        function searchProducts(query) {
+            console.log('Recherche:', query);
+        }
+
+        function filterOrders(status) {
+            console.log('Filter:', status);
+        }
+
+        function openAddProductModal() {
+            alert('Modal d\'ajout de produit (à implémenter)');
+        }
+    </script>
+</body>
+</html>

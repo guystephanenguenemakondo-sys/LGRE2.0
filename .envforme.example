@@ -1,0 +1,38 @@
+# LGRE² Environment Variables
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# Database
+MONGODB_URI=mongodb://localhost:27017/lgre2
+
+# JWT Secret (CHANGE THIS IN PRODUCTION!)
+JWT_SECRET=lgre2-super-secret-key-change-this-in-production-2026
+
+# Orange Money API Credentials (à obtenir sur https://developer.orange.com)
+ORANGE_MONEY_API_KEY=your_orange_money_api_key
+ORANGE_MONEY_MERCHANT_ID=your_merchant_id
+ORANGE_MONEY_WEBHOOK_SECRET=your_webhook_secret
+
+# MTN Mobile Money API Credentials (à obtenir sur https://momodeveloper.mtn.com)
+MTN_MOMO_API_KEY=your_mtn_api_key
+MTN_MOMO_SUBSCRIPTION_KEY=your_subscription_key
+MTN_MOMO_USER_ID=your_user_id
+MTN_MOMO_API_SECRET=your_api_secret
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:3000
+
+# Email Configuration (optional - for notifications)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=guystephanenguenemakondo@gmail.com
+EMAIL_PASSWORD=Isl15980?!
+# File Upload
+MAX_FILE_SIZE=5242880
+UPLOAD_DIR=uploads
+
+# Admin Account (first user to create)
+ADMIN_EMAIL=guystephanenguenemakondo@gmail.com
+ADMIN_PASSWORD=Isl15980?!687870254
