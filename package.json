@@ -1,21 +1,22 @@
 {
-  "name": "lgre2-backend",
-  "version": "1.0.0",
-  "description": "Backend API pour LGRE² - Marketplace e-commerce Cameroun",
-  "main": "lgre2-backend.js",
+  "name": "lgre2-marketplace",
+  "version": "2.0.0",
+  "description": "LGRE² - Marketplace complète pour produits et services au Cameroun",
+  "main": "lgre2-backend-v2.js",
   "scripts": {
-    "start": "node lgre2-backend.js",
-    "dev": "nodemon lgre2-backend.js",
+    "start": "node lgre2-backend-v2.js",
+    "dev": "nodemon lgre2-backend-v2.js",
     "test": "jest"
   },
   "keywords": [
-    "ecommerce",
-    "cameroun",
     "marketplace",
-    "orange-money",
-    "mtn-mobile-money"
+    "cameroun",
+    "ecommerce",
+    "lgre2",
+    "produits",
+    "services"
   ],
-  "author": "Polytechnique Cameroun",
+  "author": "Guy Stephane NGUENE Makondo",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
@@ -27,7 +28,8 @@
     "dotenv": "^16.3.1",
     "express-validator": "^7.0.1",
     "helmet": "^7.0.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "nodemailer": "^6.9.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
