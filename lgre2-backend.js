@@ -1,5 +1,6 @@
-// LGRE² Backend Server
-// Node.js + Express + MongoDB
+// LGRE² Backend Server - Version 2.0
+// Marketplace complète avec messagerie et gestion produits/services
+// Par Guy Stephane NGUENE Makondo
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -8,6 +9,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +21,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
+
+// Email Configuration
+const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT || 587,
+    secure: false,
+    auth: {
+        user: process.env.EMAIL_USER || 'guystephanenguenemakondo@gmail.com',
+        pass: process.env.EMAIL_PASSWORD
+    }
+});
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lgre2', {
@@ -31,86 +45,66 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lgre2', {
 
 // ==================== MODELS ====================
 
-// User Schema
+// User Schema - Amélioré avec pseudo et validation stricte
 const userSchema = new mongoose.Schema({
+    pseudo: { type: String, required: true, unique: true, trim: true },
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    email: { type: String, required: true, unique: true, lowercase: true },
+    password: { type: String, required: true }, // Min 10 caractères avec lettres, chiffres et caractères spéciaux
     phone: { type: String, required: true },
-    role: { type: String, enum: ['buyer', 'seller', 'admin'], default: 'buyer' },
     location: String,
+    bio: String,
+    profileImage: String,
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
     verified: { type: Boolean, default: false },
-    orangeMoneyNumber: String,
-    mtnMoneyNumber: String,
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
     createdAt: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model('User', userSchema);
 
-// Product Schema
-const productSchema = new mongoose.Schema({
-    name: { type: String, required: true },
+// Listing Schema - Pour produits ET services
+const listingSchema = new mongoose.Schema({
+    type: { type: String, enum: ['product', 'service'], required: true },
+    title: { type: String, required: true },
     description: { type: String, required: true },
     price: { type: Number, required: true },
     category: { 
         type: String, 
-        enum: ['electronics', 'fashion', 'food', 'home', 'services', 'other'],
+        enum: ['electronics', 'fashion', 'food', 'home', 'services', 'education', 'health', 'transport', 'handwork', 'exclusivities', 'other'],
         required: true 
+    },
+    condition: { 
+        type: String, 
+        enum: ['new', 'like-new', 'good', 'fair', 'for-parts', 'custom-order'],
+        default: 'new'
     },
     seller: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     images: [String],
-    stock: { type: Number, default: 1 },
-    location: String,
-    rating: { type: Number, default: 0 },
-    reviews: { type: Number, default: 0 },
-    active: { type: Boolean, default: true },
+    location: { type: String, required: true },
+    contactPhone: String,
+    available: { type: Boolean, default: true },
+    views: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now }
 });
 
-const Product = mongoose.model('Product', productSchema);
+const Listing = mongoose.model('Listing', listingSchema);
 
-// Order Schema
-const orderSchema = new mongoose.Schema({
-    buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    items: [{
-        product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-        quantity: Number,
-        price: Number
-    }],
-    totalAmount: { type: Number, required: true },
-    paymentMethod: { 
-        type: String, 
-        enum: ['orange_money', 'mtn_mobile_money', 'card'],
-        required: true 
-    },
-    paymentStatus: { 
-        type: String, 
-        enum: ['pending', 'completed', 'failed', 'refunded'],
-        default: 'pending'
-    },
-    transactionId: String,
-    phoneNumber: String,
-    deliveryAddress: String,
-    status: { 
-        type: String, 
-        enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'],
-        default: 'pending'
-    },
+// Message Schema - Pour la messagerie
+const messageSchema = new mongoose.Schema({
+    conversation: { type: String, required: true }, // Format: "userId1_userId2" (triés alphabétiquement)
+    sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    receiver: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    listingRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Listing' }, // Référence à l'annonce
+    content: { type: String, required: true },
+    read: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
 
-const Order = mongoose.model('Order', orderSchema);
+messageSchema.index({ conversation: 1, createdAt: -1 });
 
-// Review Schema
-const reviewSchema = new mongoose.Schema({
-    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    rating: { type: Number, required: true, min: 1, max: 5 },
-    comment: String,
-    createdAt: { type: Date, default: Date.now }
-});
-
-const Review = mongoose.model('Review', reviewSchema);
+const Message = mongoose.model('Message', messageSchema);
 
 // ==================== MIDDLEWARE ====================
 
@@ -143,7 +137,8 @@ const isAdmin = (req, res, next) => {
 // File Upload Configuration
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/products/');
+        const uploadPath = file.fieldname === 'profileImage' ? 'uploads/profiles/' : 'uploads/listings/';
+        cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
         cb(null, Date.now() + '-' + file.originalname);
@@ -152,7 +147,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
     fileFilter: function (req, file, cb) {
         if (file.mimetype.startsWith('image/')) {
             cb(null, true);
@@ -162,6 +157,17 @@ const upload = multer({
     }
 });
 
+// Validation du mot de passe
+function validatePassword(password) {
+    // Au moins 10 caractères, 1 lettre, 1 chiffre, 1 caractère spécial
+    const minLength = password.length >= 10;
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+    
+    return minLength && hasLetter && hasNumber && hasSpecial;
+}
+
 // ==================== ROUTES ====================
 
 // ===== AUTH ROUTES =====
@@ -169,19 +175,38 @@ const upload = multer({
 // Register
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { name, email, password, phone, location } = req.body;
+        const { pseudo, name, email, password, phone, location } = req.body;
 
-        // Check if user exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
+        // Validation des champs
+        if (!pseudo || !name || !email || !password || !phone) {
+            return res.status(400).json({ error: 'Tous les champs sont requis' });
+        }
+
+        // Validation du mot de passe
+        if (!validatePassword(password)) {
+            return res.status(400).json({ 
+                error: 'Le mot de passe doit contenir au moins 10 caractères, incluant des lettres, des chiffres et des caractères spéciaux' 
+            });
+        }
+
+        // Vérifier si l'email existe
+        const existingEmail = await User.findOne({ email });
+        if (existingEmail) {
             return res.status(400).json({ error: 'Email déjà utilisé' });
         }
 
+        // Vérifier si le pseudo existe
+        const existingPseudo = await User.findOne({ pseudo });
+        if (existingPseudo) {
+            return res.status(400).json({ error: 'Pseudo déjà utilisé' });
+        }
+
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 12);
 
         // Create user
         const user = new User({
+            pseudo,
             name,
             email,
             password: hashedPassword,
@@ -193,9 +218,9 @@ app.post('/api/auth/register', async (req, res) => {
 
         // Generate token
         const token = jwt.sign(
-            { id: user._id, email: user.email, role: user.role },
+            { id: user._id, email: user.email, pseudo: user.pseudo, role: user.role },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '30d' }
         );
 
         res.status(201).json({
@@ -203,8 +228,10 @@ app.post('/api/auth/register', async (req, res) => {
             token,
             user: {
                 id: user._id,
+                pseudo: user.pseudo,
                 name: user.name,
                 email: user.email,
+                phone: user.phone,
                 role: user.role
             }
         });
@@ -232,9 +259,9 @@ app.post('/api/auth/login', async (req, res) => {
 
         // Generate token
         const token = jwt.sign(
-            { id: user._id, email: user.email, role: user.role },
+            { id: user._id, email: user.email, pseudo: user.pseudo, role: user.role },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '30d' }
         );
 
         res.json({
@@ -242,8 +269,10 @@ app.post('/api/auth/login', async (req, res) => {
             token,
             user: {
                 id: user._id,
+                pseudo: user.pseudo,
                 name: user.name,
                 email: user.email,
+                phone: user.phone,
                 role: user.role
             }
         });
@@ -252,21 +281,211 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// ===== PRODUCT ROUTES =====
-
-// Get all products
-app.get('/api/products', async (req, res) => {
+// Forgot Password - Envoie un code par email
+app.post('/api/auth/forgot-password', async (req, res) => {
     try {
-        const { category, search, minPrice, maxPrice, location } = req.query;
-        let query = { active: true };
+        const { email } = req.body;
 
-        if (category && category !== 'all') {
-            query.category = category;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: 'Aucun compte avec cet email' });
         }
+
+        // Générer un code de 6 chiffres
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Hasher le code et définir l'expiration (5 minutes)
+        user.resetPasswordToken = crypto.createHash('sha256').update(resetCode).digest('hex');
+        user.resetPasswordExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+        await user.save();
+
+        // Envoyer l'email
+        const mailOptions = {
+            from: 'LGRE² <guystephanenguenemakondo@gmail.com>',
+            to: user.email,
+            subject: 'Code de réinitialisation - LGRE²',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4;">
+                    <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+                        <h2 style="color: #0066CC;">LGRE² - Réinitialisation de mot de passe</h2>
+                        <p>Bonjour <strong>${user.name}</strong>,</p>
+                        <p>Voici votre code de réinitialisation :</p>
+                        <div style="background: #0066CC; color: white; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; border-radius: 5px; margin: 20px 0;">
+                            ${resetCode}
+                        </div>
+                        <p style="color: #e74c3c;"><strong>Ce code expire dans 5 minutes.</strong></p>
+                        <p>Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+                        <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+                        <p style="color: #666; font-size: 12px;">
+                            LGRE² Marketplace<br>
+                            Power by Guy Stephane NGUENE Makondo<br>
+                            Contact: +237 687870254 | guystephanenguenemakondo@gmail.com
+                        </p>
+                    </div>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.json({ 
+            message: 'Code de réinitialisation envoyé par email',
+            email: user.email 
+        });
+    } catch (error) {
+        console.error('Erreur envoi email:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email' });
+    }
+});
+
+// Verify Reset Code
+app.post('/api/auth/verify-reset-code', async (req, res) => {
+    try {
+        const { email, code } = req.body;
+
+        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
+
+        const user = await User.findOne({
+            email,
+            resetPasswordToken: hashedCode,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ error: 'Code invalide ou expiré' });
+        }
+
+        res.json({ message: 'Code valide', email: user.email });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Reset Password
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { email, code, newPassword } = req.body;
+
+        // Validation du nouveau mot de passe
+        if (!validatePassword(newPassword)) {
+            return res.status(400).json({ 
+                error: 'Le mot de passe doit contenir au moins 10 caractères, incluant des lettres, des chiffres et des caractères spéciaux' 
+            });
+        }
+
+        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
+
+        const user = await User.findOne({
+            email,
+            resetPasswordToken: hashedCode,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ error: 'Code invalide ou expiré' });
+        }
+
+        // Mettre à jour le mot de passe
+        user.password = await bcrypt.hash(newPassword, 12);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.json({ message: 'Mot de passe réinitialisé avec succès' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get Current User
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update Profile
+app.put('/api/auth/profile', authenticateToken, upload.single('profileImage'), async (req, res) => {
+    try {
+        const { name, phone, location, bio } = req.body;
+        const updateData = { name, phone, location, bio };
+
+        if (req.file) {
+            updateData.profileImage = '/uploads/profiles/' + req.file.filename;
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            updateData,
+            { new: true }
+        ).select('-password');
+
+        res.json({ message: 'Profil mis à jour', user });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== LISTING ROUTES (Produits et Services) =====
+
+// Create Listing
+app.post('/api/listings', authenticateToken, upload.array('images', 5), async (req, res) => {
+    try {
+        const { type, title, description, price, category, condition, location, contactPhone } = req.body;
+
+        const images = req.files ? req.files.map(file => '/uploads/listings/' + file.filename) : [];
+
+        const listing = new Listing({
+            type,
+            title,
+            description,
+            price: Number(price),
+            category,
+            condition: condition || 'new',
+            seller: req.user.id,
+            images,
+            location,
+            contactPhone: contactPhone || null
+        });
+
+        await listing.save();
+
+        res.status(201).json({
+            message: 'Annonce créée avec succès',
+            listing
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get All Listings (avec filtres et recherche)
+app.get('/api/listings', async (req, res) => {
+    try {
+        const { 
+            type, 
+            category, 
+            search, 
+            minPrice, 
+            maxPrice, 
+            location, 
+            condition,
+            sort = '-createdAt'
+        } = req.query;
+
+        let query = { available: true };
+
+        if (type && type !== 'all') query.type = type;
+        if (category && category !== 'all') query.category = category;
+        if (condition && condition !== 'all') query.condition = condition;
+        if (location) query.location = { $regex: location, $options: 'i' };
 
         if (search) {
             query.$or = [
-                { name: { $regex: search, $options: 'i' } },
+                { title: { $regex: search, $options: 'i' } },
                 { description: { $regex: search, $options: 'i' } }
             ];
         }
@@ -277,276 +496,270 @@ app.get('/api/products', async (req, res) => {
             if (maxPrice) query.price.$lte = Number(maxPrice);
         }
 
-        if (location) {
-            query.location = { $regex: location, $options: 'i' };
+        const listings = await Listing.find(query)
+            .populate('seller', 'pseudo name profileImage location')
+            .sort(sort)
+            .limit(100);
+
+        res.json(listings);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get Single Listing
+app.get('/api/listings/:id', async (req, res) => {
+    try {
+        const listing = await Listing.findById(req.params.id)
+            .populate('seller', 'pseudo name profileImage location phone email createdAt');
+
+        if (!listing) {
+            return res.status(404).json({ error: 'Annonce non trouvée' });
         }
 
-        const products = await Product.find(query)
-            .populate('seller', 'name location')
+        // Increment views
+        listing.views += 1;
+        await listing.save();
+
+        res.json(listing);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get User's Listings
+app.get('/api/listings/user/:userId', async (req, res) => {
+    try {
+        const listings = await Listing.find({ seller: req.params.userId })
             .sort({ createdAt: -1 });
 
-        res.json(products);
+        res.json(listings);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get single product
-app.get('/api/products/:id', async (req, res) => {
+// Update Listing
+app.put('/api/listings/:id', authenticateToken, upload.array('images', 5), async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id)
-            .populate('seller', 'name email phone location');
-        
-        if (!product) {
-            return res.status(404).json({ error: 'Produit non trouvé' });
+        const listing = await Listing.findById(req.params.id);
+
+        if (!listing) {
+            return res.status(404).json({ error: 'Annonce non trouvée' });
         }
 
-        res.json(product);
+        if (listing.seller.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+
+        const { title, description, price, category, condition, location, contactPhone, available } = req.body;
+
+        listing.title = title || listing.title;
+        listing.description = description || listing.description;
+        listing.price = price ? Number(price) : listing.price;
+        listing.category = category || listing.category;
+        listing.condition = condition || listing.condition;
+        listing.location = location || listing.location;
+        listing.contactPhone = contactPhone !== undefined ? contactPhone : listing.contactPhone;
+        listing.available = available !== undefined ? available : listing.available;
+
+        if (req.files && req.files.length > 0) {
+            const newImages = req.files.map(file => '/uploads/listings/' + file.filename);
+            listing.images = [...listing.images, ...newImages];
+        }
+
+        await listing.save();
+
+        res.json({ message: 'Annonce mise à jour', listing });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Create product (seller only)
-app.post('/api/products', authenticateToken, upload.array('images', 5), async (req, res) => {
+// Delete Listing
+app.delete('/api/listings/:id', authenticateToken, async (req, res) => {
     try {
-        const { name, description, price, category, stock, location } = req.body;
+        const listing = await Listing.findById(req.params.id);
 
-        const images = req.files ? req.files.map(file => `/uploads/products/${file.filename}`) : [];
+        if (!listing) {
+            return res.status(404).json({ error: 'Annonce non trouvée' });
+        }
 
-        const product = new Product({
-            name,
-            description,
-            price: Number(price),
-            category,
-            seller: req.user.id,
-            images,
-            stock: Number(stock) || 1,
-            location
+        if (listing.seller.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+
+        await listing.deleteOne();
+
+        res.json({ message: 'Annonce supprimée' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===== MESSAGING ROUTES =====
+
+// Send Message
+app.post('/api/messages', authenticateToken, async (req, res) => {
+    try {
+        const { receiverId, content, listingId } = req.body;
+
+        if (!content || !receiverId) {
+            return res.status(400).json({ error: 'Contenu et destinataire requis' });
+        }
+
+        // Créer l'ID de conversation (userId triés alphabétiquement)
+        const conversationId = [req.user.id, receiverId].sort().join('_');
+
+        const message = new Message({
+            conversation: conversationId,
+            sender: req.user.id,
+            receiver: receiverId,
+            listingRef: listingId || null,
+            content
         });
 
-        await product.save();
+        await message.save();
 
-        // Update user role to seller if not already
-        await User.findByIdAndUpdate(req.user.id, { role: 'seller' });
+        const populatedMessage = await Message.findById(message._id)
+            .populate('sender', 'pseudo profileImage')
+            .populate('receiver', 'pseudo profileImage')
+            .populate('listingRef', 'title images');
 
         res.status(201).json({
-            message: 'Produit créé avec succès',
-            product
+            message: 'Message envoyé',
+            data: populatedMessage
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Update product
-app.put('/api/products/:id', authenticateToken, async (req, res) => {
+// Get Conversation
+app.get('/api/messages/conversation/:userId', authenticateToken, async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id);
+        const conversationId = [req.user.id, req.params.userId].sort().join('_');
 
-        if (!product) {
-            return res.status(404).json({ error: 'Produit non trouvé' });
-        }
+        const messages = await Message.find({ conversation: conversationId })
+            .populate('sender', 'pseudo profileImage')
+            .populate('receiver', 'pseudo profileImage')
+            .populate('listingRef', 'title images price')
+            .sort({ createdAt: 1 });
 
-        // Check if user is the seller or admin
-        if (product.seller.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Non autorisé' });
-        }
-
-        const updatedProduct = await Product.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true }
+        // Marquer les messages comme lus
+        await Message.updateMany(
+            { 
+                conversation: conversationId,
+                receiver: req.user.id,
+                read: false
+            },
+            { read: true }
         );
 
-        res.json({
-            message: 'Produit mis à jour',
-            product: updatedProduct
-        });
+        res.json(messages);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Delete product
-app.delete('/api/products/:id', authenticateToken, async (req, res) => {
+// Get All Conversations
+app.get('/api/messages/conversations', authenticateToken, async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id);
+        // Trouver tous les messages de l'utilisateur
+        const messages = await Message.find({
+            $or: [
+                { sender: req.user.id },
+                { receiver: req.user.id }
+            ]
+        })
+        .populate('sender', 'pseudo profileImage')
+        .populate('receiver', 'pseudo profileImage')
+        .populate('listingRef', 'title images')
+        .sort({ createdAt: -1 });
 
-        if (!product) {
-            return res.status(404).json({ error: 'Produit non trouvé' });
-        }
+        // Grouper par conversation et récupérer le dernier message
+        const conversationsMap = new Map();
 
-        if (product.seller.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Non autorisé' });
-        }
+        messages.forEach(msg => {
+            const conversationId = msg.conversation;
+            
+            if (!conversationsMap.has(conversationId)) {
+                const otherUser = msg.sender._id.toString() === req.user.id 
+                    ? msg.receiver 
+                    : msg.sender;
 
-        await Product.findByIdAndUpdate(req.params.id, { active: false });
-
-        res.json({ message: 'Produit supprimé' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ===== ORDER ROUTES =====
-
-// Create order
-app.post('/api/orders', authenticateToken, async (req, res) => {
-    try {
-        const { items, paymentMethod, phoneNumber, deliveryAddress } = req.body;
-
-        // Calculate total
-        let totalAmount = 0;
-        const orderItems = [];
-
-        for (let item of items) {
-            const product = await Product.findById(item.productId);
-            if (!product || product.stock < item.quantity) {
-                return res.status(400).json({ 
-                    error: `Stock insuffisant pour ${product?.name || 'le produit'}` 
+                conversationsMap.set(conversationId, {
+                    conversationId,
+                    otherUser,
+                    lastMessage: msg,
+                    unreadCount: 0
                 });
             }
 
-            orderItems.push({
-                product: product._id,
-                quantity: item.quantity,
-                price: product.price
-            });
-
-            totalAmount += product.price * item.quantity;
-        }
-
-        // Create order
-        const order = new Order({
-            buyer: req.user.id,
-            items: orderItems,
-            totalAmount,
-            paymentMethod,
-            phoneNumber,
-            deliveryAddress
-        });
-
-        await order.save();
-
-        // Update product stock
-        for (let item of orderItems) {
-            await Product.findByIdAndUpdate(item.product, {
-                $inc: { stock: -item.quantity }
-            });
-        }
-
-        // Simulate payment processing
-        if (paymentMethod === 'orange_money' || paymentMethod === 'mtn_mobile_money') {
-            // In production, integrate with actual Orange Money / MTN Mobile Money API
-            order.transactionId = 'TXN' + Date.now();
-            order.paymentStatus = 'completed';
-            order.status = 'confirmed';
-            await order.save();
-        }
-
-        res.status(201).json({
-            message: 'Commande créée avec succès',
-            order,
-            paymentInstructions: {
-                method: paymentMethod,
-                amount: totalAmount,
-                phone: phoneNumber,
-                reference: order._id
+            // Compter les messages non lus
+            if (msg.receiver._id.toString() === req.user.id && !msg.read) {
+                conversationsMap.get(conversationId).unreadCount++;
             }
         });
+
+        const conversations = Array.from(conversationsMap.values());
+
+        res.json(conversations);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get user orders
-app.get('/api/orders', authenticateToken, async (req, res) => {
+// Get Unread Count
+app.get('/api/messages/unread-count', authenticateToken, async (req, res) => {
     try {
-        const orders = await Order.find({ buyer: req.user.id })
-            .populate('items.product')
-            .sort({ createdAt: -1 });
+        const count = await Message.countDocuments({
+            receiver: req.user.id,
+            read: false
+        });
 
-        res.json(orders);
+        res.json({ count });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get single order
-app.get('/api/orders/:id', authenticateToken, async (req, res) => {
-    try {
-        const order = await Order.findById(req.params.id)
-            .populate('items.product')
-            .populate('buyer', 'name email phone');
+// ===== USER ROUTES =====
 
-        if (!order) {
-            return res.status(404).json({ error: 'Commande non trouvée' });
+// Get User Profile (public)
+app.get('/api/users/:id', async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password -resetPasswordToken -resetPasswordExpires');
+        
+        if (!user) {
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
         }
 
-        // Check authorization
-        if (order.buyer._id.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Non autorisé' });
-        }
+        // Compter les annonces de l'utilisateur
+        const listingsCount = await Listing.countDocuments({ seller: req.params.id, available: true });
 
-        res.json(order);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ===== REVIEW ROUTES =====
-
-// Add review
-app.post('/api/reviews', authenticateToken, async (req, res) => {
-    try {
-        const { productId, rating, comment } = req.body;
-
-        // Check if user already reviewed
-        const existingReview = await Review.findOne({
-            product: productId,
-            user: req.user.id
-        });
-
-        if (existingReview) {
-            return res.status(400).json({ error: 'Vous avez déjà évalué ce produit' });
-        }
-
-        const review = new Review({
-            product: productId,
-            user: req.user.id,
-            rating: Number(rating),
-            comment
-        });
-
-        await review.save();
-
-        // Update product rating
-        const reviews = await Review.find({ product: productId });
-        const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-
-        await Product.findByIdAndUpdate(productId, {
-            rating: avgRating,
-            reviews: reviews.length
-        });
-
-        res.status(201).json({
-            message: 'Avis ajouté',
-            review
+        res.json({
+            ...user.toObject(),
+            listingsCount
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get product reviews
-app.get('/api/products/:id/reviews', async (req, res) => {
+// Search Users
+app.get('/api/users/search/:query', async (req, res) => {
     try {
-        const reviews = await Review.find({ product: req.params.id })
-            .populate('user', 'name')
-            .sort({ createdAt: -1 });
+        const users = await User.find({
+            $or: [
+                { pseudo: { $regex: req.params.query, $options: 'i' } },
+                { name: { $regex: req.params.query, $options: 'i' } }
+            ]
+        })
+        .select('pseudo name profileImage location')
+        .limit(20);
 
-        res.json(reviews);
+        res.json(users);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -554,92 +767,22 @@ app.get('/api/products/:id/reviews', async (req, res) => {
 
 // ===== ADMIN ROUTES =====
 
-// Get all users (admin only)
-app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
-    try {
-        const users = await User.find().select('-password');
-        res.json(users);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get all orders (admin only)
-app.get('/api/admin/orders', authenticateToken, isAdmin, async (req, res) => {
-    try {
-        const orders = await Order.find()
-            .populate('buyer', 'name email')
-            .populate('items.product')
-            .sort({ createdAt: -1 });
-
-        res.json(orders);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Dashboard statistics (admin only)
+// Get Dashboard Stats
 app.get('/api/admin/stats', authenticateToken, isAdmin, async (req, res) => {
     try {
         const totalUsers = await User.countDocuments();
-        const totalProducts = await Product.countDocuments({ active: true });
-        const totalOrders = await Order.countDocuments();
-        const totalRevenue = await Order.aggregate([
-            { $match: { paymentStatus: 'completed' } },
-            { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-        ]);
+        const totalListings = await Listing.countDocuments();
+        const totalProducts = await Listing.countDocuments({ type: 'product' });
+        const totalServices = await Listing.countDocuments({ type: 'service' });
+        const totalMessages = await Message.countDocuments();
 
         res.json({
             users: totalUsers,
+            listings: totalListings,
             products: totalProducts,
-            orders: totalOrders,
-            revenue: totalRevenue[0]?.total || 0
+            services: totalServices,
+            messages: totalMessages
         });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ===== PAYMENT WEBHOOK ROUTES =====
-
-// Orange Money Webhook (to be configured with Orange Money API)
-app.post('/api/webhooks/orange-money', async (req, res) => {
-    try {
-        // Verify webhook signature (in production)
-        const { transactionId, status, orderId } = req.body;
-
-        const order = await Order.findById(orderId);
-        if (order) {
-            order.paymentStatus = status === 'SUCCESS' ? 'completed' : 'failed';
-            order.transactionId = transactionId;
-            if (status === 'SUCCESS') {
-                order.status = 'confirmed';
-            }
-            await order.save();
-        }
-
-        res.json({ received: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// MTN Mobile Money Webhook
-app.post('/api/webhooks/mtn-mobile-money', async (req, res) => {
-    try {
-        const { transactionId, status, orderId } = req.body;
-
-        const order = await Order.findById(orderId);
-        if (order) {
-            order.paymentStatus = status === 'SUCCESSFUL' ? 'completed' : 'failed';
-            order.transactionId = transactionId;
-            if (status === 'SUCCESSFUL') {
-                order.status = 'confirmed';
-            }
-            await order.save();
-        }
-
-        res.json({ received: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -647,7 +790,7 @@ app.post('/api/webhooks/mtn-mobile-money', async (req, res) => {
 
 // ==================== SERVER START ====================
 
-// Serve static files (frontend)
+// Serve static files
 app.use(express.static('public'));
 
 // Root route
@@ -655,15 +798,21 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Route non trouvée' });
+});
+
 // Start server
 app.listen(PORT, () => {
     console.log(`
     ╔═══════════════════════════════════════════════╗
-    ║          🦁 LGRE² Server Started 🦁          ║
+    ║          🔷 LGRE² Server v2.0 🔷             ║
     ╠═══════════════════════════════════════════════╣
     ║  Port: ${PORT}                                  ║
     ║  Environment: ${process.env.NODE_ENV || 'development'}            ║
     ║  API: http://localhost:${PORT}/api              ║
+    ║  Power by: Guy Stephane NGUENE Makondo       ║
     ╚═══════════════════════════════════════════════╝
     `);
 });
