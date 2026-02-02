@@ -2,12 +2,13 @@
   "name": "lgre2-marketplace",
   "version": "2.0.0",
   "description": "LGRE² - Marketplace complète pour produits et services au Cameroun",
-  "main": "lgre2-backend-v2.js",
+  "main": "lgre2-backend.js",
   "scripts": {
-    "start": "node lgre2-backend-v2.js",
-    "dev": "nodemon lgre2-backend-v2.js",
+    "start": "node lgre2-backend.js",
+    "dev": "nodemon lgre2-backend.js",
+    "postinstall": "mkdir -p uploads/listings uploads/profiles public && cp index-v2.html public/index.html || echo 'Done'",
     "test": "jest"
-  },
+},
   "keywords": [
     "marketplace",
     "cameroun",
