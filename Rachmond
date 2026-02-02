@@ -1,0 +1,234 @@
+lgre-marketplace/
+│
+├── index.html        (annonces)
+├── login.html        (inscription / connexion)
+├── publish.html      (publier annonce)
+│
+├── css/
+│   └── style.css
+│
+└── js/
+    ├── auth.js       (inscription / connexion)
+    ├── annonces.js   (annonces + filtres)
+    └── storage.js   (localStorage)
+// USERS
+function getUsers() {
+    return JSON.parse(localStorage.getItem("users")) || [];
+}
+
+function saveUsers(users) {
+    localStorage.setItem("users", JSON.stringify(users));
+}
+
+// CURRENT USER
+function setCurrentUser(user) {
+    localStorage.setItem("currentUser", JSON.stringify(user));
+}
+
+function getCurrentUser() {
+    return JSON.parse(localStorage.getItem("currentUser"));
+}
+
+function logout() {
+    localStorage.removeItem("currentUser");
+}
+
+// ANNOUNCES
+function getAnnonces() {
+    return JSON.parse(localStorage.getItem("annonces")) || [];
+}
+
+function saveAnnonces(annonces) {
+    localStorage.setItem("annonces", JSON.stringify(annonces));
+}
+// INSCRIPTION
+function register(event) {
+    event.preventDefault();
+
+    const name = document.getElementById("name").value;
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    let users = getUsers();
+
+    if (users.find(u => u.email === email)) {
+        alert("Email déjà utilisé");
+        return;
+    }
+
+    const user = { id: Date.now(), name, email, password };
+    users.push(user);
+    saveUsers(users);
+    setCurrentUser(user);
+
+    alert("Inscription réussie");
+    window.location.href = "index.html";
+}
+
+// CONNEXION
+function login(event) {
+    event.preventDefault();
+
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    let users = getUsers();
+    const user = users.find(u => u.email === email && u.password === password);
+
+    if (!user) {
+        alert("Email ou mot de passe incorrect");
+        return;
+    }
+
+    setCurrentUser(user);
+    alert("Connexion réussie");
+    window.location.href = "index.html";
+}
+// INSCRIPTION
+function register(event) {
+    event.preventDefault();
+
+    const name = document.getElementById("name").value;
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    let users = getUsers();
+
+    if (users.find(u => u.email === email)) {
+        alert("Email déjà utilisé");
+        return;
+    }
+
+    const user = { id: Date.now(), name, email, password };
+    users.push(user);
+    saveUsers(users);
+    setCurrentUser(user);
+
+    alert("Inscription réussie");
+    window.location.href = "index.html";
+}
+
+// CONNEXION
+function login(event) {
+    event.preventDefault();
+
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    let users = getUsers();
+    const user = users.find(u => u.email === email && u.password === password);
+
+    if (!user) {
+        alert("Email ou mot de passe incorrect");
+        return;
+    }
+
+    setCurrentUser(user);
+    alert("Connexion réussie");
+    window.location.href = "index.html";
+} 
+<script src="js/storage.js"></script>
+<script src="js/auth.js"></script>
+function publishAnnonce(event) {
+    event.preventDefault();
+
+    const user = getCurrentUser();
+    if (!user) {
+        alert("Vous devez être connecté");
+        return;
+    }
+
+    const title = document.getElementById("title").value;
+    const category = document.getElementById("category").value;
+    const price = document.getElementById("price").value;
+    const description = document.getElementById("description").value;
+
+    const annonces = getAnnonces();
+
+    annonces.push({
+        id: Date.now(),
+        title,
+        category,
+        price,
+        description,
+        author: user.name
+    });
+
+    saveAnnonces(annonces);
+    alert("Annonce publiée !");
+    window.location.href = "index.html";
+}
+function displayAnnonces(category = "all") {
+    const container = document.getElementById("annonces");
+    const annonces = getAnnonces();
+
+    container.innerHTML = "";
+
+    const filtered = category === "all"
+        ? annonces
+        : annonces.filter(a => a.category === category);
+
+    if (filtered.length === 0) {
+        container.innerHTML = "<p>Aucune annonce trouvée</p>";
+        return;
+    }
+
+    filtered.forEach(a => {
+        const div = document.createElement("div");
+        div.className = "annonce";
+        div.innerHTML = `
+            <h3>${a.title}</h3>
+            <p>${a.description}</p>
+            <p><strong>${a.price} FCFA</strong></p>
+            <small>Publié par ${a.author}</small>
+        `;
+        container.appendChild(div);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    displayAnnonces();
+
+    document.querySelectorAll("#filters button").forEach(btn => {
+        btn.addEventListener("click", () => {
+            displayAnnonces(btn.dataset.category);
+        });
+    });
+});
+function displayAnnonces(category = "all") {
+    const container = document.getElementById("annonces");
+    const annonces = getAnnonces();
+
+    container.innerHTML = "";
+
+    const filtered = category === "all"
+        ? annonces
+        : annonces.filter(a => a.category === category);
+
+    if (filtered.length === 0) {
+        container.innerHTML = "<p>Aucune annonce trouvée</p>";
+        return;
+    }
+
+    filtered.forEach(a => {
+        const div = document.createElement("div");
+        div.className = "annonce";
+        div.innerHTML = `
+            <h3>${a.title}</h3>
+            <p>${a.description}</p>
+            <p><strong>${a.price} FCFA</strong></p>
+            <small>Publié par ${a.author}</small>
+        `;
+        container.appendChild(div);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    displayAnnonces();
+
+    document.querySelectorAll("#filters button").forEach(btn => {
+        btn.addEventListener("click", () => {
+            displayAnnonces(btn.dataset.category);
+        });
+    });
+});
