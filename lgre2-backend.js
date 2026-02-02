@@ -17,7 +17,35 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'lgre2-secret-key-change-in-production';
 
 // Middleware
-app.use(cors());
+// CORS Configuration optimisée
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'http://localhost:5000',
+            process.env.FRONTEND_URL,
+        ].filter(Boolean);
+        
+        if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            callback(null, true);
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+
+// Middleware de logging
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
@@ -32,16 +60,23 @@ const transporter = nodemailer.createTransport({
         pass: process.env.EMAIL_PASSWORD
     }
 });
+// MongoDB Connection optimisé pour Atlas
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/lgre2';
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lgre2', {
+mongoose.connect(MONGODB_URI, {
     useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+})
+.then(() => {
     console.log('✅ Connecté à MongoDB');
-}).catch(err => {
-    console.error('❌ Erreur de connexion MongoDB:', err);
+    console.log(`📍 Database: ${mongoose.connection.name}`);
+})
+.catch(err => {
+    console.error('❌ Erreur de connexion MongoDB:', err.message);
 });
+
 
 // ==================== MODELS ====================
 
@@ -175,36 +210,39 @@ function validatePassword(password) {
 // Register
 app.post('/api/auth/register', async (req, res) => {
     try {
+        console.log('📝 Tentative inscription:', { 
+            pseudo: req.body.pseudo, 
+            email: req.body.email 
+        });
+
         const { pseudo, name, email, password, phone, location } = req.body;
 
-        // Validation des champs
         if (!pseudo || !name || !email || !password || !phone) {
+            console.log('❌ Champs manquants');
             return res.status(400).json({ error: 'Tous les champs sont requis' });
         }
 
-        // Validation du mot de passe
         if (!validatePassword(password)) {
+            console.log('❌ Mot de passe invalide');
             return res.status(400).json({ 
                 error: 'Le mot de passe doit contenir au moins 10 caractères, incluant des lettres, des chiffres et des caractères spéciaux' 
             });
         }
 
-        // Vérifier si l'email existe
         const existingEmail = await User.findOne({ email });
         if (existingEmail) {
+            console.log('❌ Email déjà utilisé:', email);
             return res.status(400).json({ error: 'Email déjà utilisé' });
         }
 
-        // Vérifier si le pseudo existe
         const existingPseudo = await User.findOne({ pseudo });
         if (existingPseudo) {
+            console.log('❌ Pseudo déjà utilisé:', pseudo);
             return res.status(400).json({ error: 'Pseudo déjà utilisé' });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Create user
         const user = new User({
             pseudo,
             name,
@@ -215,8 +253,8 @@ app.post('/api/auth/register', async (req, res) => {
         });
 
         await user.save();
+        console.log('✅ Utilisateur créé:', user._id);
 
-        // Generate token
         const token = jwt.sign(
             { id: user._id, email: user.email, pseudo: user.pseudo, role: user.role },
             JWT_SECRET,
@@ -236,7 +274,11 @@ app.post('/api/auth/register', async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('❌ Erreur inscription:', error);
+        res.status(500).json({ 
+            error: error.message || 'Erreur serveur',
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
